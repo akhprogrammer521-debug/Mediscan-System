@@ -1,0 +1,431 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * =======================
+ * ENUMS
+ * =======================
+ */
+
+enum Role {
+  ADMIN
+  PATIENT
+  PHARMACIST
+}
+
+enum Gender {
+  MALE
+  FEMALE
+}
+
+enum MedicationStatus {
+  ACTIVE
+  PAUSED
+  STOPPED
+}
+
+enum OrderStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+enum NotificationType {
+  SYSTEM
+  ORDER
+  MESSAGE
+}
+
+enum SystemType {
+  ADMIN
+  PHARMACY
+  PATIENT
+}
+
+enum SettingScope {
+  GLOBAL // إعداد عام للنظام
+  USER // إعداد خاص بمستخدم
+  PHARMACY // إعداد خاص بصيدلية
+}
+
+/**
+ * =======================
+ * USER & AUTH
+ * =======================
+ */
+
+model User {
+  id       Int     @id @default(autoincrement())
+  username String  @unique
+  email    String  @unique
+  password String
+  role     Role
+  isActive Boolean @default(true)
+
+  admin      Admin?
+  patient    Patient?
+  pharmacist Pharmacist?
+
+  notifications Notification[]
+
+  settings SystemSetting[]
+
+  aiChatMessages AIChatMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * =======================
+ * ADMIN
+ * =======================
+ */
+
+model Admin {
+  id     Int  @id @default(autoincrement())
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
+}
+
+/**
+ * =======================
+ * PATIENT
+ * =======================
+ */
+
+model Patient {
+  id     Int  @id @default(autoincrement())
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
+
+  firstName String
+  lastName  String
+  phone     String
+
+  medicalInfo MedicalInfo?
+  medications PatientMedication[]
+  orders      Order[]
+
+  doseLogs MedicationDoseLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MedicalInfo {
+  id        Int     @id @default(autoincrement())
+  patientId Int     @unique
+  patient   Patient @relation(fields: [patientId], references: [id])
+
+  gender    Gender
+  birthDate DateTime
+  height    Float
+  weight    Float
+
+  currentMedications String?
+  chronicMedications String?
+  chronicDiseases    String?
+  allergies          String?
+}
+
+/**
+ * =======================
+ * PATIENT ELECTRONIC PHARMACY
+ * =======================
+ */
+
+model PatientMedication {
+  id        Int     @id @default(autoincrement())
+  patientId Int
+  patient   Patient @relation(fields: [patientId], references: [id])
+
+  name   String
+  dosage String
+  reason String?
+  notes  String?
+
+  status MedicationStatus @default(ACTIVE)
+
+  schedules MedicationSchedule[]
+  logs      MedicationLog[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model MedicationLog {
+  id Int @id @default(autoincrement())
+
+  patientMedicationId Int
+  scheduleId          Int
+
+  takenAt DateTime @default(now())
+  date    DateTime // YYYY-MM-DD (normalized)
+
+  patientMedication PatientMedication  @relation(fields: [patientMedicationId], references: [id])
+  schedule          MedicationSchedule @relation(fields: [scheduleId], references: [id])
+
+  @@unique([scheduleId, date])
+}
+
+model MedicationDoseLog {
+  id         Int       @id @default(autoincrement())
+  scheduleId Int
+  patientId  Int
+  date       DateTime // YYYY-MM-DD (بداية اليوم)
+  taken      Boolean   @default(false)
+  takenAt    DateTime?
+
+  schedule MedicationSchedule @relation(fields: [scheduleId], references: [id])
+  patient  Patient            @relation(fields: [patientId], references: [id])
+
+  @@unique([scheduleId, date])
+}
+
+model MedicationSchedule {
+  id                  Int               @id @default(autoincrement())
+  patientMedicationId Int
+  patientMedication   PatientMedication @relation(fields: [patientMedicationId], references: [id], onDelete: Cascade)
+  logs                MedicationLog[]
+
+  time      String
+  days      String
+  taken     Boolean  @default(false)
+  updatedAt DateTime @updatedAt
+
+  doseLogs MedicationDoseLog[]
+}
+
+/**
+ * =======================
+ * PHARMACIST & PHARMACY
+ * =======================
+ */
+
+model Pharmacist {
+  id     Int  @id @default(autoincrement())
+  userId Int  @unique
+  user   User @relation(fields: [userId], references: [id])
+
+  pharmacy Pharmacy?
+  orders   Order[]
+}
+
+model Pharmacy {
+  id        Int    @id @default(autoincrement())
+  name      String
+  address   String
+  latitude  Float?
+  longitude Float?
+  phone     String
+
+  licenseNumber    String
+  licenseIssuedAt  DateTime
+  licenseExpiresAt DateTime
+
+  settings SystemSetting[]
+
+  pharmacistId Int        @unique
+  pharmacist   Pharmacist @relation(fields: [pharmacistId], references: [id])
+
+  stocks      PharmacyStock[]
+  orders      Order[]
+  customDrugs CustomPharmacyDrug[]
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+/**
+ * =======================
+ * DRUGS (GLOBAL & STOCK)
+ * =======================
+ */
+
+model Drug {
+  id          Int     @id @default(autoincrement())
+
+  name        String
+  strength    String?
+  description String?
+
+  composition       String?
+  indications       String?
+  contraindications String?
+  dosage            String?
+  warnings          String?
+  sideEffects       String?
+  interactions      String?
+  overdose          String?
+
+  pharmacyStocks    PharmacyStock[]
+
+  interactionsA     DrugInteraction[] @relation("DrugA")
+  interactionsB     DrugInteraction[] @relation("DrugB")
+
+  createdAt DateTime @default(now())
+}
+
+
+model CustomPharmacyDrug {
+  id         Int @id @default(autoincrement())
+  pharmacyId Int
+
+  name     String
+  strength String?
+  price    Float
+  notes    String?
+
+  pharmacy Pharmacy        @relation(fields: [pharmacyId], references: [id])
+  stock    PharmacyStock[]
+}
+
+model PharmacyStock {
+  id         Int @id @default(autoincrement())
+  pharmacyId Int
+
+  drugId       Int?
+  customDrugId Int?
+
+  quantity Int
+  price    Float @default(0)
+
+  pharmacy   Pharmacy            @relation(fields: [pharmacyId], references: [id])
+  drug       Drug?               @relation(fields: [drugId], references: [id])
+  customDrug CustomPharmacyDrug? @relation(fields: [customDrugId], references: [id])
+}
+
+/**
+ * =======================
+ * DRUG INTERACTIONS
+ * =======================
+ */
+
+model DrugInteraction {
+  id      Int @id @default(autoincrement())
+  drugAId Int
+  drugBId Int
+
+  severity String
+  warning  String
+
+  drugA Drug @relation("DrugA", fields: [drugAId], references: [id])
+  drugB Drug @relation("DrugB", fields: [drugBId], references: [id])
+
+  @@unique([drugAId, drugBId])
+}
+
+/**
+ * =======================
+ * ORDERS
+ * =======================
+ */
+
+model Order {
+  id           Int  @id @default(autoincrement())
+  patientId    Int
+  pharmacyId   Int
+  pharmacistId Int?
+
+  drugName String
+  quantity Int
+
+  prescriptionImage String?
+
+  status OrderStatus @default(PENDING)
+
+  patient    Patient     @relation(fields: [patientId], references: [id])
+  pharmacy   Pharmacy    @relation(fields: [pharmacyId], references: [id])
+  pharmacist Pharmacist? @relation(fields: [pharmacistId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+/**
+ * =======================
+ * NOTIFICATIONS
+ * =======================
+ */
+
+model Notification {
+  id Int @id @default(autoincrement())
+
+  userId Int? // قد يكون null لإشعارات النظام
+  toRole Role? // لتوجيه إشعارات عامة (PHARMACIST)
+
+  type    NotificationType
+  title   String
+  message String
+
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+}
+
+model SystemSetting {
+  id    Int    @id @default(autoincrement())
+  key   String
+  value String
+
+  role  Role
+  scope SettingScope @default(GLOBAL)
+
+  userId     Int?
+  pharmacyId Int?
+
+  user     User?     @relation(fields: [userId], references: [id])
+  pharmacy Pharmacy? @relation(fields: [pharmacyId], references: [id])
+
+  // GLOBAL settings (no user, no pharmacy)
+  @@unique([scope, role, key], name: "scope_role_key")
+  // USER-specific settings
+  @@unique([scope, role, key, userId], name: "scope_role_key_userId")
+  // PHARMACY-specific settings
+  @@unique([scope, role, key, pharmacyId], name: "scope_role_key_pharmacyId")
+}
+
+/**
+ * =======================
+ * OCR & PRESCRIPTIONS
+ * =======================
+ */
+
+model OCRScan {
+  id       Int    @id @default(autoincrement())
+  imageUrl String
+  text     String
+  language String
+
+  createdAt DateTime @default(now())
+}
+
+model Prescription {
+  id                Int     @id @default(autoincrement())
+  imageUrl          String
+  content           String
+  translatedContent String?
+
+  createdAt DateTime @default(now())
+}
+
+model AIChatMessage {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  role      String // "user" | "assistant"
+  content   String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+}
