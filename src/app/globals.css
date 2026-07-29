@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    direction: rtl;
+    scroll-behavior: smooth;
+  }
+
+  :root {
+    /* Light (Medical) */
+    --bg-body: #f5f7fb;
+    --bg-elevated: #ffffff;
+    --bg-soft: #edf2ff;
+    --surface: #ffffff;
+    
+
+    --text-main: #0b1220;
+    --text-muted: #475569;
+
+    --border-subtle: rgba(15, 23, 42, 0.08);
+
+    --sidebar-width: 15rem;
+
+    --card-bg: #ffffff;
+  --card-border: rgba(15, 23, 42, 0.08);
+  --card-shadow: 0 8px 30px rgba(15, 23, 42, 0.06);
+  }
+
+  :root[data-theme='dark'] {
+    /* Dark Admin */
+    --bg-body: #020617; /* slate-950 تقريباً */
+    --bg-elevated: #020617;
+    --bg-soft: #0f172a;
+    --surface: #0f172a;
+
+    --text-main: #e2e8f0;
+    --text-muted: #94a3b8;
+
+    --border-subtle: rgba(148, 163, 184, 0.35);
+
+    --card-bg: #0f172a;
+  --card-border: rgba(148, 163, 184, 0.25);
+  --card-shadow: none;
+  }
+
+  body {
+    background-color: var(--bg-body);
+    color: var(--text-main);
+    @apply antialiased;
+  }
+
+  * {
+    border-color: var(--border-subtle);
+  }
+}
+
+/* أنيميشن بسيطة للصفحات */
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@layer components {
+  .page-animate {
+    animation: fadeInUp 0.3s ease-out;
+  }
+}
+
+/* Utilities مبنية على الـ variables */
+@layer utilities {
+  .bg-surface {
+    background-color: var(--bg-elevated);
+  }
+  .bg-soft {
+    background-color: var(--bg-soft);
+  }
+  .text-main {
+    color: var(--text-main);
+  }
+  .text-muted {
+    color: var(--text-muted);
+  }
+  .border-subtle {
+    border-color: var(--border-subtle);
+  }
+}
